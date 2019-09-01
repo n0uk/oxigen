@@ -3,6 +3,5 @@
 members = [
 	"oxigen",
 	"nqueens-oxigen",
-	"onemax-oxigen",
-	"knapsack-oxigen"
+	"onemax-oxigen"
 ]
