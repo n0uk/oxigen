@@ -144,6 +144,8 @@ pub struct GeneticExecution<T: PartialEq + Send + Sync, Ind: Genotype<T>> {
     progress_log: (u64, Option<File>),
     /// Population log, writes the population and fitnesses every certain number of generations.
     population_log: (u64, Option<File>),
+    /// Progress callback, writes best individual and fitness every certain number ofr generations
+    progress_callback: (u64, Option<Box<dyn Fn(u64, f64, Ind) -> () + Sync>>),
 }
 
 impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> Default for GeneticExecution<T, Ind> {
@@ -170,6 +172,7 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> Default for GeneticExecution<
             cache_map: HashMap::new(),
             progress_log: (0, None),
             population_log: (0, None),
+            progress_callback: (0, None),
         }
     }
 }
@@ -287,6 +290,16 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
         self
     }
 
+    /// Sets the progress callback
+    pub fn progress_callback(
+        mut self,
+        generations: u64,
+        callback: Box<dyn Fn(u64, f64, Ind) -> () + Sync>,
+    ) -> Self {
+        self.progress_callback = (generations, Some(callback));
+        self
+    }
+
     /// Run the genetic algorithm executiion until the `stop_criterion` is satisfied.
     ///
     /// # Returns
@@ -356,6 +369,9 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
             if self.population_log.0 > 0 && generation % self.population_log.0 == 0 {
                 self.print_population(generation);
             }
+            if self.progress_callback.0 > 0 && generation % self.progress_callback.0 == 0 {
+                self.call_progress_callback(generation);
+            }
 
             self.update_age();
         }
@@ -365,6 +381,18 @@ impl<T: PartialEq + Send + Sync, Ind: Genotype<T>> GeneticExecution<T, Ind> {
             final_solutions.push(self.population[i].ind.clone());
         }
         (final_solutions, generation, progress, self.population)
+    }
+
+    fn call_progress_callback(&mut self, generation: u64) {
+        if let Some(ref f) = self.progress_callback.1 {
+            if let Some(individual) = self.population.first() {
+                f(
+                    generation,
+                    individual.fitness.unwrap().fitness,
+                    individual.ind.clone(),
+                );
+            }
+        }
     }
 
     fn print_population(&mut self, generation: u64) {
